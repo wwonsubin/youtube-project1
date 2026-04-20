@@ -1,0 +1,234 @@
+# 카테고리 먹방 (약 1000개 추출)
+
+!pip -q install google-api-python-client pandas opencv-python requests
+
+from googleapiclient.discovery import build
+import pandas as pd
+import time
+import requests
+import numpy as np
+import cv2
+
+# =========================
+# 1. 기본 설정
+# =========================
+API_KEY = "API_KEY_입력"
+youtube = build("youtube", "v3", developerKey=API_KEY)
+
+# =========================
+# 2. 먹방 관련 검색어 / 필터 키워드
+# =========================
+mukbang_queries = [
+    "먹방",
+    "mukbang",
+    "food vlog",
+    "맛집 먹방",
+    "리얼사운드 먹방"
+]
+
+mukbang_filter_keywords = [
+    "먹방", "mukbang", "eating show", "리얼사운드", "맛집",
+    "먹는", "food", "food vlog", "asmr 먹방", "야식 먹방"
+]
+
+# =========================
+# 3. video_id 수집 함수
+# =========================
+def collect_video_ids(youtube, queries, per_query=200):
+    all_ids = []
+
+    for q in queries:
+        print(f"수집 중: {q}")
+        next_page_token = None
+        collected = 0
+
+        while collected < per_query:
+            request = youtube.search().list(
+                part="snippet",
+                q=q,
+                type="video",
+                maxResults=50,
+                regionCode="KR",
+                relevanceLanguage="ko",
+                order="viewCount",
+                pageToken=next_page_token
+            )
+            response = request.execute()
+
+            items = response.get("items", [])
+            if not items:
+                break
+
+            for item in items:
+                video_id = item["id"]["videoId"]
+                all_ids.append(video_id)
+                collected += 1
+
+                if collected >= per_query:
+                    break
+
+            next_page_token = response.get("nextPageToken")
+            if not next_page_token:
+                break
+
+            time.sleep(0.3)
+
+    all_ids = list(dict.fromkeys(all_ids))
+    print("중복 제거 후 video_id 개수:", len(all_ids))
+    return all_ids
+
+# =========================
+# 4. 상세 정보 수집 함수
+# =========================
+def get_video_details(youtube, video_ids):
+    rows = []
+
+    for i in range(0, len(video_ids), 50):
+        batch_ids = video_ids[i:i+50]
+
+        request = youtube.videos().list(
+            part="snippet,statistics",
+            id=",".join(batch_ids)
+        )
+        response = request.execute()
+
+        for item in response.get("items", []):
+            snippet = item.get("snippet", {})
+            stats = item.get("statistics", {})
+            tags = snippet.get("tags", [])
+
+            rows.append({
+                "video_id": item.get("id"),
+                "title": snippet.get("title"),
+                "channel_title": snippet.get("channelTitle"),
+                "published_at": snippet.get("publishedAt"),
+                "view_count": int(stats.get("viewCount", 0)),
+                "like_count": int(stats.get("likeCount", 0)),
+                "comment_count": int(stats.get("commentCount", 0)),
+                "tags": tags,
+                "tag_count": len(tags),
+                "thumbnail_url": snippet.get("thumbnails", {}).get("high", {}).get("url")
+            })
+
+        time.sleep(0.3)
+
+    return pd.DataFrame(rows)
+
+# =========================
+# 5. 먹방 영상 필터 함수
+# =========================
+def is_mukbang_video(title, tags, keyword_list):
+    title_text = str(title).lower()
+    tags_text = " ".join(tags).lower() if isinstance(tags, list) else str(tags).lower()
+    combined_text = title_text + " " + tags_text
+
+    return any(keyword.lower() in combined_text for keyword in keyword_list)
+
+# =========================
+# 6. 썸네일 사람 유무 판별 함수
+# =========================
+def detect_face_from_url(url):
+    try:
+        response = requests.get(url, timeout=5)
+        img_array = np.asarray(bytearray(response.content), dtype=np.uint8)
+        img = cv2.imdecode(img_array, cv2.IMREAD_COLOR)
+
+        if img is None:
+            return 0
+
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+        face_cascade = cv2.CascadeClassifier(
+            cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
+        )
+
+        faces = face_cascade.detectMultiScale(
+            gray,
+            scaleFactor=1.1,
+            minNeighbors=4
+        )
+
+        return 1 if len(faces) > 0 else 0
+
+    except:
+        return 0
+
+# =========================
+# 7. video_id 1000개 수집
+# =========================
+video_ids = collect_video_ids(youtube, mukbang_queries, per_query=200)
+print("최종 video_id 수:", len(video_ids))
+
+# =========================
+# 8. 상세 정보 수집
+# =========================
+df_mukbang = get_video_details(youtube, video_ids)
+print("상세 정보 수집 완료:", df_mukbang.shape)
+
+# =========================
+# 9. 먹방 영상 필터링
+# =========================
+df_mukbang = df_mukbang[
+    df_mukbang.apply(
+        lambda row: is_mukbang_video(row["title"], row["tags"], mukbang_filter_keywords),
+        axis=1
+    )
+].reset_index(drop=True)
+
+print("먹방 영상 필터링 후 개수:", len(df_mukbang))
+
+# =========================
+# 10. 분석용 변수 추가
+# =========================
+df_mukbang["title_length"] = df_mukbang["title"].astype(str).apply(len)
+
+df_mukbang["published_at"] = pd.to_datetime(df_mukbang["published_at"], errors="coerce")
+df_mukbang["upload_hour"] = df_mukbang["published_at"].dt.hour
+df_mukbang["upload_day"] = df_mukbang["published_at"].dt.day_name()
+
+df_mukbang["has_person"] = df_mukbang["thumbnail_url"].apply(detect_face_from_url)
+
+# =========================
+# 11. 최종 컬럼 정리
+# =========================
+df_mukbang = df_mukbang[
+    [
+        "video_id",
+        "title",
+        "channel_title",
+        "published_at",
+        "upload_hour",
+        "upload_day",
+        "view_count",
+        "like_count",
+        "comment_count",
+        "tags",
+        "tag_count",
+        "title_length",
+        "thumbnail_url",
+        "has_person"
+    ]
+]
+
+# =========================
+# 12. 결과 확인
+# =========================
+print("최종 데이터 크기:", df_mukbang.shape)
+display(df_mukbang.head())
+
+print("\n분석 변수 확인")
+display(df_mukbang[[
+    "view_count",
+    "like_count",
+    "comment_count",
+    "title_length",
+    "upload_hour",
+    "tag_count",
+    "has_person"
+]].head())
+
+# =========================
+# 13. CSV 저장
+# =========================
+df_mukbang.to_csv("/content/youtube_mukbang_1000_final.csv", index=False, encoding="utf-8-sig")
+print("저장 완료: /content/youtube_mukbang_1000_final.csv")
