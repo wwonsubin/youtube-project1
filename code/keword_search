@@ -1,0 +1,46 @@
+#Colab실행
+
+# 파일 업로드
+from google.colab import files
+uploaded = files.upload()   
+import pandas as pd
+
+# 업로드한 파일 자동 인식
+filename = list(uploaded.keys())[0]  # 업로드한 파일 자동 인식
+df = pd.read_csv(filename)
+
+df.head()
+
+keywords = df['query'].dropna().astype(str).tolist()
+
+# 키워드 나열
+print("키워드 개수:", len(keywords))
+print(keywords[:10])      
+
+from wordcloud import WordCloud
+import matplotlib.pyplot as plt
+from collections import Counter
+
+# 폰트 설치
+!apt-get -qq install fonts-nanum
+
+# 빈도 계산
+freq = Counter(keywords)
+
+# 올바른 경로
+font_path = "/usr/share/fonts/truetype/nanum/NanumGothic.ttf"
+
+wc = WordCloud(
+    font_path=font_path,
+    width=1000,
+    height=500,
+    background_color="white"
+).generate_from_frequencies(freq)
+
+#colab에 저장
+wc.to_file("/content/wordcloud.png")
+
+plt.figure(figsize=(15,7))
+plt.imshow(wc, interpolation='bilinear')
+plt.axis('off')
+plt.show()
