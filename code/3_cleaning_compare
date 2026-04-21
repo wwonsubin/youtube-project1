@@ -1,0 +1,104 @@
+import pandas as pd
+import matplotlib.pyplot as plt
+from google.colab import files
+
+# =========================
+# 1. 파일 업로드
+# =========================
+print("원본 데이터 파일 업로드")
+uploaded_before = files.upload()
+
+print("\n전처리 데이터 파일 업로드")
+uploaded_after = files.upload()
+
+before_file = list(uploaded_before.keys())[0]
+after_file = list(uploaded_after.keys())[0]
+
+# =========================
+# 2. CSV 불러오기 (인코딩 자동)
+# =========================
+def load_csv(file):
+    try:
+        return pd.read_csv(file, encoding="utf-8")
+    except:
+        try:
+            return pd.read_csv(file, encoding="cp949")
+        except:
+            return pd.read_csv(file, encoding="latin1")
+
+df_before = load_csv(before_file)
+df_after = load_csv(after_file)
+
+# =========================
+# 3. 🔥 숫자 컬럼 정리 (핵심)
+# =========================
+def clean_numeric(df, col):
+    if col in df.columns:
+        df[col] = df[col].astype(str)              # 문자열로 통일
+        df[col] = df[col].str.replace(",", "")     # 쉼표 제거
+        df[col] = pd.to_numeric(df[col], errors="coerce")  # 숫자 변환
+    return df
+
+for col in ["view_count", "like_count", "comment_count"]:
+    df_before = clean_numeric(df_before, col)
+    df_after = clean_numeric(df_after, col)
+
+# =========================
+# 4. 안전한 통계 함수
+# =========================
+def get_stats(df, col):
+    if col in df.columns:
+        temp = df[col].dropna()
+        return [
+            temp.count(),
+            round(temp.mean(), 2),
+            round(temp.std(), 2),
+            round(temp.min(), 2),
+            round(temp.quantile(0.25), 2),
+            round(temp.median(), 2),
+            round(temp.quantile(0.75), 2),
+            round(temp.max(), 2)
+        ]
+    else:
+        return ["-"] * 8
+
+# =========================
+# 5. 비교 표 생성
+# =========================
+stats_index = ["count", "mean", "std", "min", "25%", "50%", "75%", "max"]
+
+summary = pd.DataFrame({
+    "통계량": stats_index,
+    "조회수(전)": get_stats(df_before, "view_count"),
+    "조회수(후)": get_stats(df_after, "view_count"),
+    "좋아요(전)": get_stats(df_before, "like_count"),
+    "좋아요(후)": get_stats(df_after, "like_count"),
+    "댓글수(전)": get_stats(df_before, "comment_count"),
+    "댓글수(후)": get_stats(df_after, "comment_count"),
+})
+
+print("\n===== 전처리 전후 통계 비교 =====")
+display(summary)
+
+# =========================
+# 6. 데이터 개수 비교
+# =========================
+print("\n===== 데이터 개수 =====")
+print("전:", len(df_before))
+print("후:", len(df_after))
+print("제거:", len(df_before) - len(df_after))
+
+# =========================
+# 7. 박스플롯
+# =========================
+plt.figure(figsize=(10,4))
+
+plt.subplot(1,2,1)
+plt.boxplot(df_before["view_count"].dropna())
+plt.title("Before")
+
+plt.subplot(1,2,2)
+plt.boxplot(df_after["view_count"].dropna())
+plt.title("After")
+
+plt.show()
