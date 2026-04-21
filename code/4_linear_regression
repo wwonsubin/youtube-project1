@@ -1,0 +1,115 @@
+import pandas as pd
+import numpy as np
+from google.colab import files
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LinearRegression
+from sklearn.metrics import mean_squared_error, r2_score
+
+# =========================
+# 1. 파일 업로드
+# =========================
+print("전처리 완료 CSV 업로드")
+uploaded = files.upload()
+
+file_name = list(uploaded.keys())[0]
+
+def load_csv(file):
+    try:
+        return pd.read_csv(file, encoding="utf-8")
+    except:
+        try:
+            return pd.read_csv(file, encoding="cp949")
+        except:
+            return pd.read_csv(file, encoding="latin1")
+
+df = load_csv(file_name)
+
+# =========================
+# 2. 숫자형 컬럼 정리
+# =========================
+num_cols = ["view_count", "like_count", "comment_count", "title_length", "upload_hour", "tag_count", "has_person"]
+
+for col in num_cols:
+    if col in df.columns:
+        df[col] = df[col].astype(str).str.replace(",", "", regex=False)
+        df[col] = pd.to_numeric(df[col], errors="coerce")
+
+# 필요한 컬럼 결측 제거
+needed_cols = num_cols + ["category"]
+df = df.dropna(subset=needed_cols).reset_index(drop=True)
+
+# 종속변수 로그 변환
+df["log_view_count"] = np.log1p(df["view_count"])
+
+# =========================
+# 3. 카테고리별 회귀분석
+# =========================
+results = []
+
+categories = df["category"].unique()
+
+for cat in categories:
+    temp = df[df["category"] == cat].copy()
+
+    # 데이터 너무 적으면 제외
+    if len(temp) < 20:
+        continue
+
+    X = temp[["like_count", "comment_count", "title_length", "upload_hour", "tag_count", "has_person"]]
+    y = temp["log_view_count"]
+
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.2, random_state=42
+    )
+
+    model = LinearRegression()
+    model.fit(X_train, y_train)
+
+    y_pred = model.predict(X_test)
+
+    mse = mean_squared_error(y_test, y_pred)
+    r2 = r2_score(y_test, y_pred)
+
+    row = {
+        "카테고리": cat,
+        "데이터수": len(temp),
+        "R²": round(r2, 4),
+        "MSE": round(mse, 4),
+        "좋아요수 계수": round(model.coef_[0], 6),
+        "댓글수 계수": round(model.coef_[1], 6),
+        "제목길이 계수": round(model.coef_[2], 6),
+        "업로드시간 계수": round(model.coef_[3], 6),
+        "태그수 계수": round(model.coef_[4], 6),
+        "썸네일 사람유무 계수": round(model.coef_[5], 6)
+    }
+
+    results.append(row)
+
+# =========================
+# 4. 요약표 생성
+# =========================
+result_df = pd.DataFrame(results)
+
+print("===== 카테고리별 회귀분석 결과 요약표 =====")
+display(result_df)
+
+# =========================
+# 5. 절댓값 기준 주요 영향 변수 찾기
+# =========================
+coef_cols = [
+    "좋아요수 계수",
+    "댓글수 계수",
+    "제목길이 계수",
+    "업로드시간 계수",
+    "태그수 계수",
+    "썸네일 사람유무 계수"
+]
+
+def get_top_variable(row):
+    values = row[coef_cols].abs()
+    return values.idxmax()
+
+result_df["가장 영향 큰 변수"] = result_df.apply(get_top_variable, axis=1)
+
+print("\n===== 카테고리별 가장 영향 큰 변수 =====")
+display(result_df[["카테고리", "가장 영향 큰 변수"]])
