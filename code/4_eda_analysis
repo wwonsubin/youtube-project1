@@ -1,0 +1,211 @@
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+from google.colab import files
+
+# =========================
+# 1. 파일 업로드
+# =========================
+print("전처리 완료 CSV 업로드")
+uploaded = files.upload()
+
+file_name = list(uploaded.keys())[0]
+
+def load_csv(file):
+    try:
+        return pd.read_csv(file, encoding="utf-8")
+    except:
+        try:
+            return pd.read_csv(file, encoding="cp949")
+        except:
+            return pd.read_csv(file, encoding="latin1")
+
+df = load_csv(file_name)
+
+print("\n데이터 크기:", df.shape)
+display(df.head())
+
+# =========================
+# 2. 숫자형 컬럼 정리
+# =========================
+num_cols = ["view_count", "like_count", "comment_count", "title_length", "upload_hour", "tag_count", "has_person"]
+
+for col in num_cols:
+    if col in df.columns:
+        df[col] = df[col].astype(str).str.replace(",", "", regex=False)
+        df[col] = pd.to_numeric(df[col], errors="coerce")
+
+# =========================
+# 3. 기초 통계량
+# =========================
+print("\n===== 기초 통계량 =====")
+display(df[num_cols].describe())
+
+# =========================
+# 4. 결측치 확인
+# =========================
+print("\n===== 결측치 =====")
+display(df.isnull().sum())
+
+# =========================
+# 5. 카테고리 분포
+# =========================
+if "category" in df.columns:
+    print("\n===== 카테고리별 개수 =====")
+    display(df["category"].value_counts())
+
+# =========================
+# 6. 히스토그램 (분포)
+# =========================
+plt.figure(figsize=(12,4))
+
+plt.subplot(1,3,1)
+plt.hist(df["view_count"].dropna(), bins=30)
+plt.title("view_count")
+
+plt.subplot(1,3,2)
+plt.hist(df["like_count"].dropna(), bins=30)
+plt.title("like_count")
+
+plt.subplot(1,3,3)
+plt.hist(df["comment_count"].dropna(), bins=30)
+plt.title("comment_count")
+
+plt.tight_layout()
+plt.show()
+
+# =========================
+# 7. 박스플롯
+# =========================
+plt.figure(figsize=(12,4))
+
+plt.subplot(1,3,1)
+plt.boxplot(df["view_count"].dropna())
+plt.title("view_count")
+
+plt.subplot(1,3,2)
+plt.boxplot(df["like_count"].dropna())
+plt.title("like_count")
+
+plt.subplot(1,3,3)
+plt.boxplot(df["comment_count"].dropna())
+plt.title("comment_count")
+
+plt.tight_layout()
+plt.show()
+
+# =========================
+# 8. 로그 변환
+# =========================
+df["log_view"] = np.log1p(df["view_count"])
+df["log_like"] = np.log1p(df["like_count"])
+df["log_comment"] = np.log1p(df["comment_count"])
+
+plt.figure(figsize=(12,4))
+
+plt.subplot(1,3,1)
+plt.hist(df["log_view"], bins=30)
+plt.title("log_view")
+
+plt.subplot(1,3,2)
+plt.hist(df["log_like"], bins=30)
+plt.title("log_like")
+
+plt.subplot(1,3,3)
+plt.hist(df["log_comment"], bins=30)
+plt.title("log_comment")
+
+plt.tight_layout()
+plt.show()
+
+# =========================
+# 9. 산점도
+# =========================
+plt.figure(figsize=(12,4))
+
+plt.subplot(1,3,1)
+plt.scatter(df["like_count"], df["view_count"], alpha=0.5)
+plt.title("view vs like")
+
+plt.subplot(1,3,2)
+plt.scatter(df["comment_count"], df["view_count"], alpha=0.5)
+plt.title("view vs comment")
+
+plt.subplot(1,3,3)
+plt.scatter(df["title_length"], df["view_count"], alpha=0.5)
+plt.title("view vs title_length")
+
+plt.tight_layout()
+plt.show()
+
+# =========================
+# 10. 썸네일 사람 여부
+# =========================
+if "has_person" in df.columns:
+    grouped = df.groupby("has_person")["view_count"].mean()
+    print("\n===== 썸네일 사람 여부 =====")
+    display(grouped)
+
+    grouped.plot(kind="bar", title="has_person vs view")
+    plt.show()
+
+# =========================
+# 11. 업로드 시간
+# =========================
+if "upload_hour" in df.columns:
+    hour_mean = df.groupby("upload_hour")["view_count"].mean()
+
+    plt.figure(figsize=(8,4))
+    hour_mean.plot(kind="bar")
+    plt.title("upload_hour vs view")
+    plt.show()
+
+# =========================
+# 12. 카테고리별 평균 조회수
+# =========================
+if "category" in df.columns:
+    cat_mean = df.groupby("category")["view_count"].mean().sort_values(ascending=False)
+
+    plt.figure(figsize=(8,4))
+    cat_mean.plot(kind="bar")
+    plt.title("category vs view")
+    plt.show()
+
+# =========================
+# 13. 상관관계
+# =========================
+corr_cols = ["view_count", "like_count", "comment_count", "title_length", "upload_hour", "tag_count", "has_person"]
+corr = df[corr_cols].corr(numeric_only=True)
+
+print("\n===== 상관관계 =====")
+display(corr)
+
+# =========================
+# 14. 히트맵
+# =========================
+plt.figure(figsize=(8,6))
+plt.imshow(corr, cmap="coolwarm")
+plt.colorbar()
+
+plt.xticks(range(len(corr.columns)), corr.columns, rotation=45)
+plt.yticks(range(len(corr.columns)), corr.columns)
+
+plt.title("Correlation Heatmap")
+plt.show()
+
+# =========================
+# 15. 핵심 요약
+# =========================
+print("\n===== 핵심 요약 =====")
+print("데이터 수:", len(df))
+print("평균 조회수:", round(df["view_count"].mean(), 2))
+print("평균 좋아요:", round(df["like_count"].mean(), 2))
+print("평균 댓글:", round(df["comment_count"].mean(), 2))
+
+if "category" in df.columns:
+    print("\n카테고리별 평균 조회수")
+    display(df.groupby("category")["view_count"].mean())
+
+if "has_person" in df.columns:
+    print("\n썸네일 사람 유무별 조회수")
+    display(df.groupby("has_person")["view_count"].mean())
