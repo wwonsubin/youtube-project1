@@ -1,0 +1,118 @@
+import pandas as pd
+import numpy as np
+from google.colab import files
+
+# =========================
+# 1. 파일 업로드 (선택창)
+# =========================
+uploaded = files.upload()
+
+# 업로드된 파일 이름 가져오기
+file_name = list(uploaded.keys())[0]
+print("업로드된 파일:", file_name)
+
+# =========================
+# 2. 파일 불러오기
+# =========================
+df = pd.read_csv(file_name,encoding="cp949")
+
+# 원본 백업
+df_before = df.copy()
+
+# =========================
+# 3. 결측치 확인
+# =========================
+print("\n결측치 개수")
+print(df.isnull().sum())
+
+# =========================
+# 4. 결측치 처리
+# =========================
+num_cols = ["view_count", "like_count", "comment_count", "tag_count", "has_person"]
+
+for col in num_cols:
+    if col in df.columns:
+        df[col] = df[col].fillna(0)
+
+# 핵심 컬럼 결측 제거
+required_cols = ["title", "published_at", "category"]
+df = df.dropna(subset=[col for col in required_cols if col in df.columns])
+
+# tags 처리
+if "tags" in df.columns:
+    df["tags"] = df["tags"].fillna("")
+
+# =========================
+# 5. 숫자형 변환
+# =========================
+for col in num_cols:
+    if col in df.columns:
+        df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
+
+for col in ["view_count", "like_count", "comment_count", "tag_count", "has_person"]:
+    if col in df.columns:
+        df[col] = df[col].astype(int)
+
+# =========================
+# 6. 날짜형 변환
+# =========================
+df["published_at"] = pd.to_datetime(df["published_at"], errors="coerce")
+df = df.dropna(subset=["published_at"])
+
+# =========================
+# 7. 파생 변수 생성
+# =========================
+df["title_length"] = df["title"].astype(str).apply(len)
+df["upload_hour"] = df["published_at"].dt.hour
+df["upload_day"] = df["published_at"].dt.day_name()
+df["upload_month"] = df["published_at"].dt.month
+
+# =========================
+# 8. 중복 제거
+# =========================
+if "video_id" in df.columns:
+    df = df.drop_duplicates(subset="video_id")
+else:
+    df = df.drop_duplicates()
+
+# =========================
+# 9. 이상치 제거 (카테고리별)
+# =========================
+def remove_outliers_by_category(data, target_col="view_count", category_col="category"):
+    result = []
+
+    for cat in data[category_col].unique():
+        temp = data[data[category_col] == cat].copy()
+
+        Q1 = temp[target_col].quantile(0.25)
+        Q3 = temp[target_col].quantile(0.75)
+        IQR = Q3 - Q1
+
+        lower = Q1 - 1.5 * IQR
+        upper = Q3 + 1.5 * IQR
+
+        temp = temp[(temp[target_col] >= lower) & (temp[target_col] <= upper)]
+        result.append(temp)
+
+    return pd.concat(result, ignore_index=True)
+
+df_after = remove_outliers_by_category(df)
+
+# =========================
+# 10. 결과 출력
+# =========================
+print("\n전처리 전:", df_before.shape)
+print("전처리 후:", df_after.shape)
+
+# =========================
+# 11. 파일 저장
+# =========================
+output_file = "cleaned_data.csv"
+df_after.to_csv(output_file, index=False, encoding="utf-8-sig")
+
+print("\n저장 완료:", output_file)
+
+# =========================
+# 12. 다운로드
+# =========================
+files.download(output_file)
