@@ -1,0 +1,136 @@
+!pip -q install google-api-python-client pandas opencv-python requests
+
+from googleapiclient.discovery import build
+import pandas as pd
+import time
+import requests
+import numpy as np
+import cv2
+
+API_KEY = "API_KEY_입력"
+youtube = build("youtube", "v3", developerKey=API_KEY)
+
+# =========================
+# ASMR 검색어
+# =========================
+asmr_queries = [
+    "asmr",
+    "ASMR 먹방",
+    "ASMR sleep",
+    "ASMR sound",
+    "asmr korea"
+]
+
+asmr_filter_keywords = [
+    "asmr", "sleep", "sound", "팅글", "소리", "relax",
+    "whisper", "ear", "trigger"
+]
+
+# =========================
+# 공통 함수
+# =========================
+def collect_video_ids(youtube, queries, per_query=200):
+    all_ids = []
+
+    for q in queries:
+        print(f"\n수집 중: {q}")
+        next_page_token = None
+        collected = 0
+
+        while collected < per_query:
+            request = youtube.search().list(
+                part="snippet",
+                q=q,
+                type="video",
+                maxResults=50,
+                order="viewCount",
+                pageToken=next_page_token
+            )
+            response = request.execute()
+
+            items = response.get("items", [])
+            if not items:
+                break
+
+            for item in items:
+                all_ids.append(item["id"]["videoId"])
+                collected += 1
+                if collected >= per_query:
+                    break
+
+            next_page_token = response.get("nextPageToken")
+            if not next_page_token:
+                break
+
+            time.sleep(0.3)
+
+    return list(dict.fromkeys(all_ids))
+
+
+def get_video_details(youtube, video_ids):
+    rows = []
+
+    for i in range(0, len(video_ids), 50):
+        batch_ids = video_ids[i:i+50]
+
+        request = youtube.videos().list(
+            part="snippet,statistics",
+            id=",".join(batch_ids)
+        )
+        response = request.execute()
+
+        for item in response.get("items", []):
+            snippet = item["snippet"]
+            stats = item.get("statistics", {})
+            tags = snippet.get("tags", [])
+
+            rows.append({
+                "video_id": item["id"],
+                "title": snippet["title"],
+                "channel_title": snippet["channelTitle"],
+                "published_at": snippet["publishedAt"],
+                "view_count": int(stats.get("viewCount", 0)),
+                "like_count": int(stats.get("likeCount", 0)),
+                "comment_count": int(stats.get("commentCount", 0)),
+                "tags": tags,
+                "tag_count": len(tags),
+                "thumbnail_url": snippet["thumbnails"]["high"]["url"]
+            })
+
+    return pd.DataFrame(rows)
+
+
+def detect_face_from_url(url):
+    try:
+        img_arr = np.asarray(bytearray(requests.get(url).content), dtype=np.uint8)
+        img = cv2.imdecode(img_arr, cv2.IMREAD_COLOR)
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+        face_cascade = cv2.CascadeClassifier(
+            cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
+        )
+        faces = face_cascade.detectMultiScale(gray, 1.1, 4)
+
+        return 1 if len(faces) > 0 else 0
+    except:
+        return 0
+
+
+# =========================
+# 실행
+# =========================
+video_ids = collect_video_ids(youtube, asmr_queries)
+df = get_video_details(youtube, video_ids)
+
+# 필터
+df = df[df.apply(lambda r: any(k in (r["title"] + str(r["tags"])).lower() for k in asmr_filter_keywords), axis=1)]
+
+# 변수 생성
+df["title_length"] = df["title"].apply(len)
+df["published_at"] = pd.to_datetime(df["published_at"])
+df["upload_hour"] = df["published_at"].dt.hour
+df["upload_day"] = df["published_at"].dt.day_name()
+df["has_person"] = df["thumbnail_url"].apply(detect_face_from_url)
+
+df.to_csv("/content/youtube_asmr_1000.csv", index=False, encoding="utf-8-sig")
+print("ASMR 완료:", df.shape)
