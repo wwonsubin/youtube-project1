@@ -81,7 +81,7 @@
 - Streamlit 기반 대시보드 구축
 
 ---
-
+</>
 ## 8. 프로젝트 구조
 📦 youtube-project
  ┣ 📂 code                 # 데이터 수집 및 분석 코드
@@ -105,7 +105,7 @@
  ┃ ┗ keywords_wordcloud.png       # 키워드 워드클라우드
  ┃
  ┗ README.md
-
+</>
 ---
 
 ## 9. 사용 기술
