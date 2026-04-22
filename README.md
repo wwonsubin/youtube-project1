@@ -86,7 +86,7 @@
 ```
 📦 youtube-project
  ┣ 📂 code                 # 데이터 수집 및 분석 코드
- ┃ ┣ 1_keyword_search           # Google Trends 기반 키워드 추출
+ ┃ ┣ 1_keyword_search           # Google Trends 기반 인기 키워드 시각화
  ┃ ┣ 2_mining_music             # 노래 데이터 수집
  ┃ ┣ 2_mining_mukbang           # 먹방 데이터 수집
  ┃ ┣ 2_mining_news              # 뉴스 데이터 수집
