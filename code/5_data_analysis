@@ -1,0 +1,258 @@
+# ==========================================
+# 0. CSV 파일 업로드
+# ==========================================
+
+from google.colab import files
+
+uploaded = files.upload()
+file_name = list(uploaded.keys())[0]
+
+print("업로드 파일:", file_name)
+
+# ==========================================
+# 1. 라이브러리 설치
+# ==========================================
+
+!pip install statsmodels scikit-learn chardet -q
+
+# ==========================================
+# 2. 라이브러리 불러오기
+# ==========================================
+
+import pandas as pd
+import numpy as np
+import chardet
+
+from scipy.stats import pearsonr, spearmanr
+from sklearn.linear_model import LinearRegression
+import statsmodels.api as sm
+
+# ==========================================
+# 3. 인코딩 자동 감지
+# ==========================================
+
+with open(file_name, "rb") as f:
+    result = chardet.detect(f.read())
+
+encoding = result["encoding"]
+print("감지된 인코딩:", encoding)
+
+# ==========================================
+# 4. CSV 불러오기
+# ==========================================
+
+df = pd.read_csv(
+    file_name,
+    encoding=encoding
+)
+
+print("데이터 크기:", df.shape)
+display(df.head())
+
+# ==========================================
+# 5. 날짜 처리 - timezone 문제 해결
+# ==========================================
+
+df["published_at"] = pd.to_datetime(
+    df["published_at"],
+    errors="coerce",
+    utc=True
+)
+
+today = pd.Timestamp.now(tz="UTC")
+
+df["days_since_upload"] = (
+    today - df["published_at"]
+).dt.days
+
+# ==========================================
+# 6. 숫자형 변환
+# ==========================================
+
+numeric_cols = [
+    "view_count",
+    "like_count",
+    "comment_count",
+    "subscriber_count",
+    "tag_count",
+    "title_length",
+    "has_person",
+    "has_number",
+    "special_char_count",
+    "has_emotion_word",
+    "days_since_upload"
+]
+
+for col in numeric_cols:
+    df[col] = pd.to_numeric(
+        df[col],
+        errors="coerce"
+    )
+
+# ==========================================
+# 7. 결측치 제거
+# ==========================================
+
+df = df.dropna(
+    subset=numeric_cols
+).copy()
+
+print("분석 데이터 수:", len(df))
+
+# ==========================================
+# 8. 로그변환
+# ==========================================
+
+df["log_view_count"] = np.log1p(df["view_count"])
+df["log_like_count"] = np.log1p(df["like_count"])
+df["log_comment_count"] = np.log1p(df["comment_count"])
+df["log_subscriber_count"] = np.log1p(df["subscriber_count"])
+df["log_days_since_upload"] = np.log1p(df["days_since_upload"])
+
+# ==========================================
+# 9. 단순 상관분석
+# ==========================================
+
+print("\n" + "="*60)
+print("단순 상관분석")
+print("="*60)
+
+pearson_corr, pearson_p = pearsonr(
+    df["tag_count"],
+    df["log_view_count"]
+)
+
+print("Pearson 상관계수 :", round(pearson_corr, 4))
+print("Pearson p-value :", pearson_p)
+
+spearman_corr, spearman_p = spearmanr(
+    df["tag_count"],
+    df["log_view_count"]
+)
+
+print("Spearman 상관계수 :", round(spearman_corr, 4))
+print("Spearman p-value :", spearman_p)
+
+# ==========================================
+# 10. 부분상관 함수
+# ==========================================
+
+def partial_corr(data, x, y, controls):
+    temp = data[[x, y] + controls].dropna()
+
+    X_control = temp[controls]
+
+    model_x = LinearRegression()
+    model_y = LinearRegression()
+
+    model_x.fit(X_control, temp[x])
+    model_y.fit(X_control, temp[y])
+
+    x_res = temp[x] - model_x.predict(X_control)
+    y_res = temp[y] - model_y.predict(X_control)
+
+    r, p = pearsonr(x_res, y_res)
+
+    return r, p
+
+# ==========================================
+# 11. 부분상관분석
+# ==========================================
+
+print("\n" + "="*60)
+print("부분상관분석")
+print("="*60)
+
+r1, p1 = partial_corr(
+    df,
+    "tag_count",
+    "log_view_count",
+    ["log_subscriber_count"]
+)
+
+print("\n[구독자 수 통제]")
+print("부분상관계수 :", round(r1, 4))
+print("p-value :", p1)
+
+r2, p2 = partial_corr(
+    df,
+    "tag_count",
+    "log_view_count",
+    ["log_days_since_upload"]
+)
+
+print("\n[업로드 경과 시간 통제]")
+print("부분상관계수 :", round(r2, 4))
+print("p-value :", p2)
+
+r3, p3 = partial_corr(
+    df,
+    "tag_count",
+    "log_view_count",
+    [
+        "log_subscriber_count",
+        "log_days_since_upload"
+    ]
+)
+
+print("\n[구독자 수 + 업로드 경과 시간 통제]")
+print("부분상관계수 :", round(r3, 4))
+print("p-value :", p3)
+
+# ==========================================
+# 12. 다중회귀분석
+# ==========================================
+
+print("\n" + "="*60)
+print("다중회귀분석")
+print("="*60)
+
+y = df["log_view_count"]
+
+X = df[
+    [
+        "log_like_count",
+        "log_comment_count",
+        "log_subscriber_count",
+        "log_days_since_upload",
+        "tag_count",
+        "title_length",
+        "has_person",
+        "has_number",
+        "special_char_count",
+        "has_emotion_word"
+    ]
+]
+
+X = sm.add_constant(X)
+
+model = sm.OLS(y, X).fit()
+
+print(model.summary())
+
+# ==========================================
+# 13. 회귀분석 결과표
+# ==========================================
+
+result_table = pd.DataFrame({
+    "변수": model.params.index,
+    "계수(coef)": model.params.values,
+    "p-value": model.pvalues.values
+})
+
+print("\n회귀분석 결과표")
+display(result_table.sort_values(by="p-value"))
+
+# ==========================================
+# 14. Q2 핵심 결과
+# ==========================================
+
+print("\n" + "="*60)
+print("Q2 핵심 결과: tag_count")
+print("="*60)
+
+display(
+    result_table[
+        result_table["변수"] == "tag_count"
+    ]
+)
