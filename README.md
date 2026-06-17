@@ -225,17 +225,24 @@
  ┃ ┣ 2_mining_vlog              # 브이로그 데이터 수집
  ┃ ┣ 3_cleaning_data            # 데이터 전처리
  ┃ ┣ 3_cleaning_compare         # 전처리 전후 비교
+ ┃ ┣ 3_update_variable          # 변수추가_구독자수
+ ┃ ┣ 3_update_variable2         # 변수추가_특수문자, 감성어, 숫자여부
  ┃ ┣ 4_eda_analysis             # 탐색적 데이터 분석 (EDA)
- ┃ ┗ 4_linear_regression        # 회귀분석
+ ┃ ┣ 5_data_analysis            # 부분상관분석, 다중회귀분석
+ ┃ ┣ 5_random_forest            # Random Forest
+ ┃ ┗ 5_verify_variable          # 얼굴인식검증, 카테고리 검증
  ┃
  ┣ 📂 data                  # 데이터 파일
- ┃ ┣ youtube_all_categories.csv   # 전체 수집 데이터
+ ┃ ┣ youtube_final_dataset.csv    # 최종 가공 데이터
+ ┃ ┣ youtube_all_categories.csv   # 수집 데이터
  ┃ ┣ cleaned_data.csv             # 전처리 완료 데이터
  ┃ ┗ trending_keywords.csv        # 인기 키워드 데이터
  ┃
  ┣ 📂 img                   # 시각화 결과 이미지
  ┃ ┗ keywords_wordcloud.png       # 키워드 워드클라우드
  ┃
+ ┃ app.py                   # Streamlit 대시보드 구축
+ ┃ requirements.txt 
  ┗ README.md
 ```
 ---
@@ -255,9 +262,6 @@
 - GitHub
 - Streamlit Community Cloud
 - Google Colab
-
----
-
 
 ---
 
