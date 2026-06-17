@@ -1,0 +1,161 @@
+# ==========================================
+# 1. 라이브러리 불러오기
+# ==========================================
+
+import pandas as pd
+from IPython.display import display, HTML
+import ipywidgets as widgets
+from google.colab import files
+
+# ==========================================
+# 2. CSV 불러오기
+# ==========================================
+
+df = pd.read_csv(
+    "youtube_final_dataset.csv",
+    encoding="utf-8-sig"
+)
+
+print("데이터 크기:", df.shape)
+
+# ==========================================
+# 3. 검증용 샘플 만들기
+# ==========================================
+
+# 얼굴 검증용 50개
+face_sample = df.sample(
+    n=50,
+    random_state=42
+).copy()
+
+face_sample["actual_face"] = None
+
+# 카테고리 검증용: 카테고리별 10개
+category_sample = (
+    df.groupby("category", group_keys=False)
+      .apply(lambda x: x.sample(n=min(10, len(x)), random_state=42))
+      .copy()
+)
+
+category_sample["actual_category"] = None
+
+# ==========================================
+# 4. 얼굴 인식 검증용 인터페이스
+# ==========================================
+
+face_index = 0
+face_results = []
+
+face_output = widgets.Output()
+
+def show_face_item():
+    global face_index
+
+    face_output.clear_output()
+
+    row = face_sample.iloc[face_index]
+
+    with face_output:
+        display(HTML(f"""
+        <h3>얼굴 인식 검증 {face_index + 1} / {len(face_sample)}</h3>
+        <p><b>제목:</b> {row['title']}</p>
+        <p><b>채널:</b> {row['channel_title']}</p>
+        <p><b>OpenCV 판단(has_person):</b> {row['has_person']}</p>
+        <img src="{row['thumbnail_url']}" width="320">
+        """))
+
+def save_face_answer(answer):
+    global face_index
+
+    face_sample.iloc[
+        face_index,
+        face_sample.columns.get_loc("actual_face")
+    ] = answer
+
+    face_index += 1
+
+    if face_index < len(face_sample):
+        show_face_item()
+    else:
+        face_output.clear_output()
+        with face_output:
+            print("얼굴 인식 검증 완료")
+            display(face_sample[["title", "has_person", "actual_face"]].head())
+
+face_yes = widgets.Button(description="실제 얼굴 있음 (1)")
+face_no = widgets.Button(description="실제 얼굴 없음 (0)")
+
+face_yes.on_click(lambda b: save_face_answer(1))
+face_no.on_click(lambda b: save_face_answer(0))
+
+print("아래 버튼으로 실제 얼굴 여부를 체크하세요.")
+display(widgets.HBox([face_yes, face_no]))
+display(face_output)
+
+show_face_item()
+
+-------------------------------------------------------------------------------
+
+
+# ==========================================
+# 5. 카테고리 검증용 인터페이스
+# ==========================================
+
+category_index = 0
+category_output = widgets.Output()
+
+category_options = [
+    "노래",
+    "먹방",
+    "뉴스",
+    "ASMR",
+    "브이로그",
+    "기타"
+]
+
+def show_category_item():
+    global category_index
+
+    category_output.clear_output()
+
+    row = category_sample.iloc[category_index]
+
+    with category_output:
+        display(HTML(f"""
+        <h3>카테고리 검증 {category_index + 1} / {len(category_sample)}</h3>
+        <p><b>제목:</b> {row['title']}</p>
+        <p><b>채널:</b> {row['channel_title']}</p>
+        <p><b>기존 카테고리:</b> {row['category']}</p>
+        <img src="{row['thumbnail_url']}" width="320">
+        """))
+
+def save_category_answer(answer):
+    global category_index
+
+    category_sample.iloc[
+        category_index,
+        category_sample.columns.get_loc("actual_category")
+    ] = answer
+
+    category_index += 1
+
+    if category_index < len(category_sample):
+        show_category_item()
+    else:
+        category_output.clear_output()
+        with category_output:
+            print("카테고리 검증 완료")
+            display(category_sample[["title", "category", "actual_category"]].head())
+
+category_buttons = []
+
+for option in category_options:
+    btn = widgets.Button(description=option)
+    btn.on_click(lambda b, opt=option: save_category_answer(opt))
+    category_buttons.append(btn)
+
+print("아래 버튼으로 실제 카테고리를 체크하세요.")
+display(widgets.HBox(category_buttons))
+display(category_output)
+
+show_category_item()
