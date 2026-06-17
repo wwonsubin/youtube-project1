@@ -1,5 +1,7 @@
 # 📊 YouTube 인기 영상 분석 프로젝트
 
+- streamlit : https://youtube-project1-mlshzxrkkjx32fck2tbqnc.streamlit.app/#52e25fb4
+
 ## 1. 프로젝트 개요
 본 프로젝트는 YouTube 영상 데이터를 활용하여  
 조회수에 영향을 미치는 요인을 분석하는 것을 목표로 한다.
