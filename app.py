@@ -2,8 +2,7 @@ import streamlit as st
 from streamlit_option_menu import option_menu
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
+import plotly.express as px
 
 # ====================================================
 # 페이지 설정
@@ -88,6 +87,22 @@ def load_data():
     return df
 
 df = load_data()
+
+# ====================================================
+# 공통 Plotly 스타일 함수
+# ====================================================
+
+def plotly_style(fig, height=360):
+    fig.update_layout(
+        template="plotly_white",
+        height=height,
+        margin=dict(l=20, r=20, t=60, b=20),
+        font=dict(size=12),
+        title_font=dict(size=16),
+        xaxis_title_font=dict(size=12),
+        yaxis_title_font=dict(size=12)
+    )
+    return fig
 
 # ====================================================
 # 사이드바
@@ -216,13 +231,21 @@ if selected == "프로젝트 소개":
 
     st.markdown("<h5>카테고리별 영상 수</h5>", unsafe_allow_html=True)
 
-    fig, ax = plt.subplots(figsize=(7, 3.5))
-    sns.barplot(data=category_count, x="category", y="count", ax=ax)
-    ax.set_title("Category Count", fontsize=12)
-    ax.set_xlabel("Category", fontsize=10)
-    ax.set_ylabel("Video Count", fontsize=10)
-    ax.tick_params(axis="both", labelsize=9)
-    st.pyplot(fig)
+    fig = px.bar(
+        category_count,
+        x="category",
+        y="count",
+        text="count",
+        title="카테고리별 영상 수"
+    )
+
+    fig.update_traces(
+        textposition="outside"
+    )
+
+    fig = plotly_style(fig, height=350)
+
+    st.plotly_chart(fig, use_container_width=True)
 
     st.dataframe(category_count, height=220, use_container_width=True)
 
@@ -256,21 +279,28 @@ elif selected == "데이터 탐색 (EDA)":
 
     st.markdown("<h4>원본 조회수 분포</h4>", unsafe_allow_html=True)
 
-    fig, ax = plt.subplots(figsize=(8, 3.5))
-    sns.histplot(df["view_count"], bins=50, ax=ax)
-    ax.set_title("View Count Distribution", fontsize=12)
-    ax.set_xlabel("View Count", fontsize=10)
-    ax.set_ylabel("Frequency", fontsize=10)
-    ax.tick_params(axis="both", labelsize=9)
-    st.pyplot(fig)
+    fig = px.histogram(
+        df,
+        x="view_count",
+        nbins=50,
+        title="원본 조회수 분포"
+    )
+
+    fig = plotly_style(fig, height=350)
+
+    st.plotly_chart(fig, use_container_width=True)
 
     st.markdown("<h4>원본 조회수 박스플롯</h4>", unsafe_allow_html=True)
 
-    fig, ax = plt.subplots(figsize=(8, 2.5))
-    sns.boxplot(x=df["view_count"], ax=ax)
-    ax.set_title("View Count Boxplot", fontsize=12)
-    ax.tick_params(axis="both", labelsize=9)
-    st.pyplot(fig)
+    fig = px.box(
+        df,
+        x="view_count",
+        title="원본 조회수 박스플롯"
+    )
+
+    fig = plotly_style(fig, height=250)
+
+    st.plotly_chart(fig, use_container_width=True)
 
     st.warning("""
     원본 조회수는 극단적으로 오른쪽으로 치우쳐 있으며, 박스플롯에서도 이상치가 다수 확인된다.
@@ -278,21 +308,28 @@ elif selected == "데이터 탐색 (EDA)":
 
     st.markdown("<h4>로그 변환 후 조회수 분포</h4>", unsafe_allow_html=True)
 
-    fig, ax = plt.subplots(figsize=(8, 3.5))
-    sns.histplot(df["log_view_count"], bins=50, ax=ax)
-    ax.set_title("Log(View Count) Distribution", fontsize=12)
-    ax.set_xlabel("Log(View Count)", fontsize=10)
-    ax.set_ylabel("Frequency", fontsize=10)
-    ax.tick_params(axis="both", labelsize=9)
-    st.pyplot(fig)
+    fig = px.histogram(
+        df,
+        x="log_view_count",
+        nbins=50,
+        title="로그 변환 후 조회수 분포"
+    )
+
+    fig = plotly_style(fig, height=350)
+
+    st.plotly_chart(fig, use_container_width=True)
 
     st.markdown("<h4>로그 변환 후 박스플롯</h4>", unsafe_allow_html=True)
 
-    fig, ax = plt.subplots(figsize=(8, 2.5))
-    sns.boxplot(x=df["log_view_count"], ax=ax)
-    ax.set_title("Log(View Count) Boxplot", fontsize=12)
-    ax.tick_params(axis="both", labelsize=9)
-    st.pyplot(fig)
+    fig = px.box(
+        df,
+        x="log_view_count",
+        title="로그 변환 후 조회수 박스플롯"
+    )
+
+    fig = plotly_style(fig, height=250)
+
+    st.plotly_chart(fig, use_container_width=True)
 
     st.success("""
     로그 변환 후 분포가 원본보다 안정적으로 변했기 때문에,
@@ -303,23 +340,35 @@ elif selected == "데이터 탐색 (EDA)":
 
     cat_view = df.groupby("category")["view_count"].mean().reset_index()
 
-    fig, ax = plt.subplots(figsize=(7, 3.5))
-    sns.barplot(data=cat_view, x="category", y="view_count", ax=ax)
-    ax.set_title("Average View Count by Category", fontsize=12)
-    ax.set_xlabel("Category", fontsize=10)
-    ax.set_ylabel("Average View Count", fontsize=10)
-    ax.tick_params(axis="both", labelsize=9)
-    st.pyplot(fig)
+    fig = px.bar(
+        cat_view,
+        x="category",
+        y="view_count",
+        text="view_count",
+        title="카테고리별 평균 조회수"
+    )
+
+    fig.update_traces(
+        texttemplate="%{text:,.0f}",
+        textposition="outside"
+    )
+
+    fig = plotly_style(fig, height=350)
+
+    st.plotly_chart(fig, use_container_width=True)
 
     st.markdown("<h4>카테고리별 로그 조회수 분포</h4>", unsafe_allow_html=True)
 
-    fig, ax = plt.subplots(figsize=(8, 3.8))
-    sns.boxplot(data=df, x="category", y="log_view_count", ax=ax)
-    ax.set_title("Log View Count by Category", fontsize=12)
-    ax.set_xlabel("Category", fontsize=10)
-    ax.set_ylabel("Log View Count", fontsize=10)
-    ax.tick_params(axis="both", labelsize=9)
-    st.pyplot(fig)
+    fig = px.box(
+        df,
+        x="category",
+        y="log_view_count",
+        title="카테고리별 로그 조회수 분포"
+    )
+
+    fig = plotly_style(fig, height=350)
+
+    st.plotly_chart(fig, use_container_width=True)
 
 # ====================================================
 # 3. 변수 검증
@@ -377,14 +426,27 @@ elif selected == "변수 검증":
         "accuracy": [0.9, 0.8, 0.9, 1.0, 1.0]
     })
 
-    fig, ax = plt.subplots(figsize=(7, 3.5))
-    sns.barplot(data=category_acc, x="category", y="accuracy", ax=ax)
-    ax.set_ylim(0, 1.1)
-    ax.set_title("Category Validation Accuracy", fontsize=12)
-    ax.set_xlabel("Category", fontsize=10)
-    ax.set_ylabel("Accuracy", fontsize=10)
-    ax.tick_params(axis="both", labelsize=9)
-    st.pyplot(fig)
+    fig = px.bar(
+        category_acc,
+        x="category",
+        y="accuracy",
+        text="accuracy",
+        title="카테고리 검증 정확도"
+    )
+
+    fig.update_traces(
+        texttemplate="%{text:.0%}",
+        textposition="outside"
+    )
+
+    fig.update_yaxes(
+        tickformat=".0%",
+        range=[0, 1.1]
+    )
+
+    fig = plotly_style(fig, height=350)
+
+    st.plotly_chart(fig, use_container_width=True)
 
     st.dataframe(category_acc, height=220, use_container_width=True)
 
@@ -425,14 +487,25 @@ elif selected == "통계 분석":
 
     st.markdown("<h4>얼굴 포함 여부별 로그 조회수 분포</h4>", unsafe_allow_html=True)
 
-    fig, ax = plt.subplots(figsize=(7, 3.5))
-    sns.boxplot(data=df, x="has_person", y="log_view_count", ax=ax)
-    ax.set_xticklabels(["No Face", "Face"])
-    ax.set_title("Face vs No Face (Log Views)", fontsize=12)
-    ax.set_xlabel("Thumbnail Face", fontsize=10)
-    ax.set_ylabel("Log View Count", fontsize=10)
-    ax.tick_params(axis="both", labelsize=9)
-    st.pyplot(fig)
+    fig = px.box(
+        df,
+        x="has_person",
+        y="log_view_count",
+        title="얼굴 포함 여부별 로그 조회수 분포",
+        labels={
+            "has_person": "Thumbnail Face",
+            "log_view_count": "Log View Count"
+        }
+    )
+
+    fig.update_xaxes(
+        ticktext=["No Face", "Face"],
+        tickvals=[0, 1]
+    )
+
+    fig = plotly_style(fig, height=350)
+
+    st.plotly_chart(fig, use_container_width=True)
 
     st.write("""
     박스플롯에서도 두 집단의 분포 차이가 크지 않음을 확인할 수 있다.
@@ -472,14 +545,22 @@ elif selected == "회귀분석":
 
     st.dataframe(partial_corr, height=190, use_container_width=True)
 
-    fig, ax = plt.subplots(figsize=(8, 3.5))
-    sns.barplot(data=partial_corr, x="분석", y="상관계수", ax=ax)
-    ax.set_title("Partial Correlation: Tag Count vs Log View Count", fontsize=12)
-    ax.set_xlabel("Control Variables", fontsize=10)
-    ax.set_ylabel("Correlation", fontsize=10)
-    ax.tick_params(axis="x", rotation=20, labelsize=8)
-    ax.tick_params(axis="y", labelsize=9)
-    st.pyplot(fig)
+    fig = px.bar(
+        partial_corr,
+        x="분석",
+        y="상관계수",
+        text="상관계수",
+        title="부분상관분석: 태그 수 vs 로그 조회수"
+    )
+
+    fig.update_traces(
+        texttemplate="%{text:.3f}",
+        textposition="outside"
+    )
+
+    fig = plotly_style(fig, height=350)
+
+    st.plotly_chart(fig, use_container_width=True)
 
     st.write("""
     태그 수와 조회수는 단순 상관에서도 약한 음의 관계를 보였으며,
@@ -529,14 +610,29 @@ elif selected == "회귀분석":
 
     st.dataframe(reg_result, height=320, use_container_width=True)
 
-    fig, ax = plt.subplots(figsize=(8, 4.5))
-    sns.barplot(data=reg_result, x="계수", y="변수", ax=ax)
-    ax.axvline(0, color="black", linewidth=1)
-    ax.set_title("Regression Coefficients", fontsize=12)
-    ax.set_xlabel("Coefficient", fontsize=10)
-    ax.set_ylabel("Variable", fontsize=10)
-    ax.tick_params(axis="both", labelsize=9)
-    st.pyplot(fig)
+    fig = px.bar(
+        reg_result.sort_values("계수"),
+        x="계수",
+        y="변수",
+        orientation="h",
+        text="계수",
+        title="다중회귀분석 계수"
+    )
+
+    fig.update_traces(
+        texttemplate="%{text:.3f}",
+        textposition="outside"
+    )
+
+    fig.add_vline(
+        x=0,
+        line_width=1,
+        line_color="black"
+    )
+
+    fig = plotly_style(fig, height=420)
+
+    st.plotly_chart(fig, use_container_width=True)
 
     st.success("""
     회귀분석 결과 좋아요 수, 댓글 수, 구독자 수, 업로드 경과 시간은 조회수와 양의 관계를 보였다.
@@ -597,13 +693,27 @@ elif selected == "Random Forest":
 
     st.markdown("<h4>변수 중요도</h4>", unsafe_allow_html=True)
 
-    fig, ax = plt.subplots(figsize=(8, 4.5))
-    sns.barplot(data=importance_df, x="importance", y="feature", ax=ax)
-    ax.set_title("Random Forest Feature Importance", fontsize=12)
-    ax.set_xlabel("Importance", fontsize=10)
-    ax.set_ylabel("Feature", fontsize=10)
-    ax.tick_params(axis="both", labelsize=9)
-    st.pyplot(fig)
+    fig = px.bar(
+        importance_df.sort_values("importance"),
+        x="importance",
+        y="feature",
+        orientation="h",
+        text="importance",
+        title="Random Forest 변수 중요도"
+    )
+
+    fig.update_traces(
+        texttemplate="%{text:.1%}",
+        textposition="outside"
+    )
+
+    fig.update_xaxes(
+        tickformat=".0%"
+    )
+
+    fig = plotly_style(fig, height=420)
+
+    st.plotly_chart(fig, use_container_width=True)
 
     st.dataframe(importance_df, height=320, use_container_width=True)
 
