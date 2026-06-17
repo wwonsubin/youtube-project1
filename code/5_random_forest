@@ -1,0 +1,187 @@
+# ==========================================
+# 0. CSV 파일 업로드
+# ==========================================
+from google.colab import files
+
+uploaded = files.upload()
+file_name = list(uploaded.keys())[0]
+
+print("업로드 파일:", file_name)
+
+# ==========================================
+# 1. 라이브러리 설치 및 불러오기
+# ==========================================
+!pip install chardet scikit-learn -q
+
+import pandas as pd
+import numpy as np
+import chardet
+import matplotlib.pyplot as plt
+
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+
+# ==========================================
+# 2. 인코딩 자동 감지 후 CSV 불러오기
+# ==========================================
+with open(file_name, "rb") as f:
+    result = chardet.detect(f.read())
+
+encoding = result["encoding"]
+print("감지된 인코딩:", encoding)
+
+df = pd.read_csv(file_name, encoding=encoding)
+
+print("데이터 크기:", df.shape)
+display(df.head())
+
+# ==========================================
+# 3. 날짜 처리
+# ==========================================
+df["published_at"] = pd.to_datetime(
+    df["published_at"],
+    errors="coerce",
+    utc=True
+)
+
+today = pd.Timestamp.now(tz="UTC")
+
+df["days_since_upload"] = (
+    today - df["published_at"]
+).dt.days
+
+# ==========================================
+# 4. 숫자형 변환
+# ==========================================
+numeric_cols = [
+    "view_count",
+    "like_count",
+    "comment_count",
+    "subscriber_count",
+    "tag_count",
+    "title_length",
+    "has_person",
+    "has_number",
+    "special_char_count",
+    "has_emotion_word",
+    "days_since_upload"
+]
+
+for col in numeric_cols:
+    df[col] = pd.to_numeric(df[col], errors="coerce")
+
+# ==========================================
+# 5. 결측치 제거
+# ==========================================
+df_model = df.dropna(subset=numeric_cols).copy()
+
+print("모델링 사용 데이터 수:", len(df_model))
+
+# ==========================================
+# 6. 로그변환
+# ==========================================
+df_model["log_view_count"] = np.log1p(df_model["view_count"])
+df_model["log_like_count"] = np.log1p(df_model["like_count"])
+df_model["log_comment_count"] = np.log1p(df_model["comment_count"])
+df_model["log_subscriber_count"] = np.log1p(df_model["subscriber_count"])
+df_model["log_days_since_upload"] = np.log1p(df_model["days_since_upload"])
+
+# ==========================================
+# 7. 독립변수 / 종속변수 설정
+# ==========================================
+features = [
+    "log_like_count",
+    "log_comment_count",
+    "log_subscriber_count",
+    "log_days_since_upload",
+    "tag_count",
+    "title_length",
+    "has_person",
+    "has_number",
+    "special_char_count",
+    "has_emotion_word"
+]
+
+X = df_model[features]
+y = df_model["log_view_count"]
+
+# ==========================================
+# 8. 학습/테스트 데이터 분리
+# ==========================================
+X_train, X_test, y_train, y_test = train_test_split(
+    X,
+    y,
+    test_size=0.2,
+    random_state=42
+)
+
+# ==========================================
+# 9. Random Forest 모델 학습
+# ==========================================
+rf = RandomForestRegressor(
+    n_estimators=300,
+    random_state=42,
+    max_depth=None,
+    min_samples_split=5,
+    min_samples_leaf=2,
+    n_jobs=-1
+)
+
+rf.fit(X_train, y_train)
+
+# ==========================================
+# 10. 예측 및 성능 평가
+# ==========================================
+y_pred = rf.predict(X_test)
+
+mae = mean_absolute_error(y_test, y_pred)
+rmse = np.sqrt(mean_squared_error(y_test, y_pred))
+r2 = r2_score(y_test, y_pred)
+
+print("\nRandom Forest 모델 성능")
+print("MAE :", round(mae, 4))
+print("RMSE:", round(rmse, 4))
+print("R²  :", round(r2, 4))
+
+# ==========================================
+# 11. 변수 중요도 계산
+# ==========================================
+importance_df = pd.DataFrame({
+    "feature": features,
+    "importance": rf.feature_importances_
+}).sort_values(
+    by="importance",
+    ascending=False
+)
+
+print("\n변수 중요도")
+display(importance_df)
+
+# ==========================================
+# 12. 변수 중요도 시각화
+# ==========================================
+plt.figure(figsize=(10, 6))
+
+plt.barh(
+    importance_df["feature"],
+    importance_df["importance"]
+)
+
+plt.gca().invert_yaxis()
+plt.title("Random Forest Feature Importance")
+plt.xlabel("Importance")
+plt.ylabel("Feature")
+plt.tight_layout()
+plt.show()
+
+# ==========================================
+# 13. 결과 저장
+# ==========================================
+importance_df.to_csv(
+    "random_forest_feature_importance.csv",
+    index=False,
+    encoding="utf-8-sig"
+)
+
+print("\n저장 완료: random_forest_feature_importance.csv")
